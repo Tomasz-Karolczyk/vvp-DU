@@ -1,0 +1,1 @@
+# Repozitář pro domácí úkoly do předmětu Vědecké Výpočty v Pythonu
