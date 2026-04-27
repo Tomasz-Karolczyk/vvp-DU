@@ -17,7 +17,7 @@ class Mesh:
     Class for storing 3D mesh.
     """
 
-    def __init__(self, fileName: str):
+    def __init__(self, file_path: str):
         """
         Creates mesh from file in format:
         vertices - 4 x ? numpy array (XYZ from file, W = 1).
@@ -27,9 +27,9 @@ class Mesh:
         vertices = []
         edges = set()  # set to remove duplicate edges
 
-        filePath = os.path.join(SCRIPT_DIR, fileName)
+        file_path = os.path.join(SCRIPT_DIR, file_path)
 
-        with open(filePath, "r") as f:
+        with open(file_path, "r") as f:
             for line in f:
                 if line.startswith("v "):
                     # read vertex line: v x y z

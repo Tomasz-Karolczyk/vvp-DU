@@ -117,7 +117,7 @@ class Transform:
         self.rotation = Rotation.identity() if rotation is None else rotation
         self.scale = vec3.one() if scale is None else scale
 
-    def GetMatrix(self) -> NDArray:
+    def get_matrix(self) -> NDArray:
         """
         Returns 4x4 transform matrix that performs scaling then rotation and lastly translation.
         """
@@ -132,11 +132,11 @@ class Transform:
 
         return T @ R @ S
 
-    def GetInverseMatrix(self) -> NDArray:
+    def get_inverse_matrix(self) -> NDArray:
         """
         Returns inverse of 4x4 transform matrix that performs scaling then rotation and lastly translation.
         """
 
-        t = self.GetMatrix()
+        t = self.get_matrix()
         t = np.linalg.inv(t)
         return t

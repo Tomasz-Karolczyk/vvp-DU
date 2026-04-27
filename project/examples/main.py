@@ -30,11 +30,11 @@ cube.transform.scale = vec3.one() * 4
 
 # infinitely move back and forth
 def l1():
-    Lerp(cube.transform, vec3(7, 2, 10), time=3, executeAfter=l2)
+    Lerp(cube.transform, vec3(7, 2, 10), time=3, execute_after=l2)
 
 
 def l2():
-    Lerp(cube.transform, vec3(7, 2, 5), time=3, executeAfter=l1)
+    Lerp(cube.transform, vec3(7, 2, 5), time=3, execute_after=l1)
 
 
 l1()
@@ -65,7 +65,7 @@ def l3():
         ]
 
     top = scalingStack.pop()
-    LerpScale(cube2.transform, top * SCALE, time=1, executeAfter=l3)
+    LerpScale(cube2.transform, top * SCALE, time=1, execute_after=l3)
 
 
 l3()
@@ -80,7 +80,7 @@ Rotate(camera.transform, vec3(0, 0, 1), 10)
 FPS = 20
 WAIT_PERIOD = 1 / FPS
 
-Camera.ClearTerminal()
+Camera.clear_terminal()
 prevTime = time.time()
 while True:
     # calculate deltaTime
@@ -93,10 +93,10 @@ while True:
     if sleepTime > 0:
         time.sleep(sleepTime)
 
-    camera.ResetPlot()
+    camera.reset_plot()
 
     Animate()
 
-    camera.DrawObjects(objects)
+    camera.draw_objects(objects)
 
     camera.Show()

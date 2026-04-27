@@ -2,13 +2,14 @@ from .transform import Transform
 from .object3d import Object
 import numpy as np
 from numpy.typing import NDArray
-
+import numba
 import os
 from typing import Iterable
 import shutil
 
 
-DEFAULT_PRECISION = 150
+DEFAULT_PRECISION = 500
+PRECISION = DEFAULT_PRECISION
 L_SPACE = np.linspace(0, 1, DEFAULT_PRECISION)
 L_SPACE = L_SPACE.reshape((DEFAULT_PRECISION, 1))
 
@@ -19,7 +20,7 @@ class Camera:
     """
 
     @staticmethod
-    def ClearTerminal() -> None:
+    def clear_terminal() -> None:
         """
         Clears terminal.
         """
@@ -27,7 +28,7 @@ class Camera:
         os.system("clear")
 
     @staticmethod
-    def GetTerminalSize() -> tuple[int, int]:
+    def get_terminal_size() -> tuple[int, int]:
         """
         Returns dimensions of terminal in '(lines, columns)' format.
         """
@@ -37,15 +38,15 @@ class Camera:
 
     def __init__(
         self,
-        charX: int | None = None,
-        charY: int | None = None,
+        char_x: int | None = None,
+        char_y: int | None = None,
         transform: Transform | None = None,
         fov: float = np.pi / 3,
         aspect: float = 1,
         near: float = 0.1,
         far: float = 100.0,
-        useBrailleFont: bool = True,
-        adjustToFontSize: bool = True,
+        use_braille_font: bool = True,
+        adjust_to_font_size: bool = True,
     ):
         """
         Creates camera.
@@ -61,47 +62,46 @@ class Camera:
         # Transform for camera
         self.transform = Transform() if transform is None else transform
 
-        if charX is None or charY is None:
-            charY, charX = Camera.GetTerminalSize()
-            charX = charX - 2  # space for border
-            charY = charY - 4  # space for border and for redraw alignment
+        if char_x is None or char_y is None:
+            char_y, char_x = Camera.get_terminal_size()
+            char_y = char_y - 2  # space for redraw alignment
 
-        self.useBrailleFont = useBrailleFont
-        px = charX * (2 if useBrailleFont else 1)
-        py = charY * (4 if useBrailleFont else 1)
+        self.useBrailleFont = use_braille_font
+        px = char_x * (2 if use_braille_font else 1)
+        py = char_y * (4 if use_braille_font else 1)
 
-        screenAspect = px / py
-        screenAspect *= 4 / 5  # account for spacing between lines
+        screen_aspect = px / py
+        screen_aspect *= 4 / 5  # account for spacing between lines
 
-        if not useBrailleFont:
-            screenAspect *= 0.5 if adjustToFontSize else 1
+        if not use_braille_font:
+            screen_aspect *= 0.5 if adjust_to_font_size else 1
 
         # Projection parameters
         self.fov = fov
-        self.aspect = screenAspect * aspect
+        self.aspect = screen_aspect * aspect
         self.near = near
         self.far = far
 
-        self.charPlotSize = (charY, charX)
-        self.plotSize = (py, px)
-        self.ResetPlot()
+        self.char_plot_size = (char_y, char_x)
+        self.plot_size = (py, px)
+        self.reset_plot()
 
-    def ResetPlot(self) -> None:
+    def reset_plot(self) -> None:
         """
         Clears internal frame buffer.
         """
 
-        self.plot = np.zeros(self.plotSize, dtype=bool)
+        self.plot = np.zeros(self.plot_size, dtype=bool)
 
-    def GetViewMatrix(self) -> NDArray:
+    def get_view_matrix(self) -> NDArray:
         """
         Returns 4x4 view matrix.
         Thats world space -> view space.
         """
 
-        return self.transform.GetInverseMatrix()
+        return self.transform.get_inverse_matrix()
 
-    def GetProjectionMatrix(self) -> NDArray:
+    def get_projection_matrix(self) -> NDArray:
         """
         Returns 4x4 perspective projection matrix.
         """
@@ -117,23 +117,23 @@ class Camera:
         P[3, 2] = 1
         return P
 
-    def DrawObjects(self, objects: Iterable[Object]):
+    def draw_objects(self, objects: Iterable[Object]):
         """
         This method renders multiple objects to a buffer.
         """
 
         for o in objects:
-            self.DrawObject(o)
+            self.draw_object(o)
 
-    def DrawObject(self, object: Object):
+    def draw_object(self, object: Object):
         """
         This method renders 'object' to a buffer.
         """
 
         # get matrices
-        V = self.GetViewMatrix()
-        P = self.GetProjectionMatrix()
-        T = object.transform.GetMatrix()
+        V = self.get_view_matrix()
+        P = self.get_projection_matrix()
+        T = object.transform.get_matrix()
         M = P @ V @ T
 
         #       T@       V@      P@
@@ -147,46 +147,16 @@ class Camera:
         vertices[:2, :] /= np.abs(w)
 
         # ndc -> screen space -> "pixel space"
-        x = (0.5 + vertices[0, :] * 0.5) * self.plotSize[1]
-        y = (0.5 - vertices[1, :] * 0.5) * self.plotSize[0]  # flip Y
+        x = (0.5 + vertices[0, :] * 0.5) * self.plot_size[1]
+        y = (0.5 - vertices[1, :] * 0.5) * self.plot_size[0]  # flip Y
 
         z = vertices[2, :]  # for clipping
-        screenSpace = np.vstack([x, y, z])  # (3, N)
+        screen_space = np.vstack([x, y, z])  # (3, N)
 
         for edge in object.mesh.edges:
-            v1 = screenSpace[:, edge[0]]
-            v2 = screenSpace[:, edge[1]]
-            self.DrawLine(v1, v2)
-
-    def DrawLine(self, v1: NDArray, v2: NDArray) -> None:
-        """
-        This method draws line between positions 'v1' and 'v2'.
-        """
-
-        v1 = v1.reshape((1, 3))
-        v2 = v2.reshape((1, 3))
-        delta = v2 - v1
-
-        points = v1 + L_SPACE @ delta
-
-        for p in points:
-            if p[2] < 0:
-                continue
-            self.Plot(p[0], p[1])
-
-    def Plot(self, x: float, y: float) -> None:
-        """
-        This method sets logical pixel at [x, y] in buffer.
-        """
-
-        x = int(x)
-        y = int(y)
-
-        if x < 0 or y < 0 or x >= self.plotSize[1] or y >= self.plotSize[0]:
-            return
-
-        # prioritize closer
-        self.plot[y, x] = True
+            v1 = screen_space[:, edge[0]]
+            v2 = screen_space[:, edge[1]]
+            draw_line(self.plot, self.plot_size, v1, v2)
 
     def GetChar(self, x: int, y: int) -> str:
         """
@@ -204,9 +174,10 @@ class Camera:
 
         mask = self.plot[y : y + 4, x : x + 2]
 
-        brailleOffset = np.sum(multipliers * mask)
+        index = np.sum(multipliers * mask)
 
-        return chr(0x2800 + brailleOffset)
+        BRAILLE_OFFSET = 0x2800
+        return chr(BRAILLE_OFFSET + index)
 
     def Show(self) -> None:
         """
@@ -215,16 +186,48 @@ class Camera:
 
         text = ""
 
-        for y in range(self.charPlotSize[0]):
-            text += "|"  # dotted boundary logic
-            for x in range(self.charPlotSize[1]):
+        for y in range(self.char_plot_size[0]):
+            for x in range(self.char_plot_size[1]):
                 text += self.GetChar(x, y)
-            text += "|\n"  # dotted boundary logic
-
-        # dotted boundary logic
-        dottedLine = "+" + "-" * self.charPlotSize[1]
-        dottedLine += "+\n"
+            text += "\n"
 
         # os.system('clear')
         print("\033[H", end="")  # redraw instead of clearing
-        print(dottedLine, text, dottedLine, sep="")
+        print(text, sep="")
+
+
+# numba compiled -----------------------
+
+
+@numba.njit(cache=True, fastmath=True, parallel=True)
+def draw_line(
+    plot: NDArray, plot_size: tuple[int, int], v1: NDArray, v2: NDArray
+) -> None:
+    """
+    This method draws line between positions 'v1' and 'v2'.
+    """
+
+    delta = v2 - v1
+    step = 1 / PRECISION
+
+    for i in numba.prange(PRECISION):
+        point = v1 + i * step * delta
+
+        if point[2] < 0:
+            continue
+        plot_at(plot, plot_size, point[0], point[1])
+
+
+@numba.njit(cache=True, fastmath=True)
+def plot_at(plot: NDArray, plot_size: tuple[int, int], x: float, y: float) -> None:
+    """
+    This method sets logical pixel at [x, y] in buffer.
+    """
+
+    x = int(x)
+    y = int(y)
+
+    if x < 0 or y < 0 or x >= plot_size[1] or y >= plot_size[0]:
+        return
+
+    plot[y, x] = True
